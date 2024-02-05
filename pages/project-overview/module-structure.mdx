@@ -1,0 +1,23 @@
+# 멀티 모듈 구조 
+
+`coupon-core`
+- DomainEvent, ExceptionCode
+- 
+<br/>
+
+`coupon-api`
+- 예를 들어 쿠폰 1개에 대해 10000 명의 사용자에게 발급한다고 할 때 발급에 대한 동시성 처리를 요청들을 레디스에 저장해두는 Write Back 방식의 캐시 지연 처리 
+- controller, advice
+- redis enqueue
+- RedisScript
+<br/>
+
+`coupon-assigner`
+- Redis 에 저장된 요청을 꺼내어서 MySQL에 저장하는 작업. 스케쥴링(@Scheduled) 기반의 데이터 배치 저장 처리
+- 데이터 저장 작업 완료시 `UserAssignedNewCouponEvent` 라는 도메인 이벤트 발급(publish)
+- @TransactionalEventListener 를 통해 트랜잭션 커밋이 완료된 couponId 를 Redis 내에 저장
+<br/>
+
+etc 
+- `coupon-assigner` 의 경우 적당한 이름을 찾지 못해서 `coupon-assigner` 라는 이름을 지어줬는데, 적당한 이름을 찾을 경우 모듈 명을 변경하고, 적당한 이름을 찾지 못하면 지금까지와 같이 `coupon-assigner` 로 진행 예정
+<br/>
