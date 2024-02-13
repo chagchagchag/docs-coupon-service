@@ -4,19 +4,13 @@
 - DomainEvent
 - 각종 ErrorCode, Exception  
 - JPA Entity, Cache Value Object
-
-> JPA Entity, Cache Value Object 는 현재 `coupon-dataaccess` 모듈로 이관 예정입니다.<br/>
-> 구현 도중에 설계가 바뀌어서 잠시 `coupon-core` 에 그대로 두고 있습니다. 가능한 빠르게 고칠 예정입니다 ㅠㅠ<br/>
 <br/>
 
 ## coupon-dataaccess
 - JPA, Querydsl, Redis, RedisScript, Caffeine 에 대한 처리 코드들을 모아두고 JPA 설정 코드들이 모여 있는 모듈입니다.<br/>
-- 초기 설계 단계에서 Query, SQL 들을 `coupon-dataaccess` 로 몰아두는 것이 뭔가를 일괄처리가 되도록 관리하려는 귀차니즘과 같은 생각 중 하나 처럼 생각이 되는 순간이 있었는데요. 구현을 거듭하면서 `coupon` 서비스 측면에서 data 조회의 버전을 따로 관리하는 모듈을 따로 분리해둔다면 더 나을 것이라는 판단이 들어서 `coupon-dataaccess` 모듈을 따로 구현하게 되었습니다.<br/>
+- 처음에는 `coupon-dataaccess` 에 데이터 코드를 모아둘까 하다가 `귀차니즘` 으로 이렇게 하는 것 같다는 생각이 들어서 프로젝트 중반에 `coupon-api`, `coupon-issuer` 마다 각각의 데이터 접근코드를 두기로 결정했었습니다.<br/>
+- 막상 개발과 설계를 수정하는 과정을 거치면서 `coupon` 이라는 서비스 측면에서 data 조회의 버전을 따로 관리하는 모듈을 따로 분리해둔다면 더 나을 것이라는 판단이 들어서 `coupon-dataaccess` 모듈을 따로 구현하게 되었습니다.<br/>
 <br/>
-
-> 이런 이유로 `coupon-core` 내에 정의해둔 엔티티 매핑, 캐시 VO 등과 같은 코드들을 `coupon-dataaccess` 로 다시 이관해야 하는데 아직 이 부분은 정리하지 못했습니다. 최대한 빠르게 정리 예정입니다.<br/>
-<br/>
-
 
 ## coupon-api
 - 사용자의 접근 포인트
@@ -34,7 +28,13 @@
 - Redis 에 저장된 쿠폰 발급 요청을 꺼내어서 MySQL에 쿠폰 발급 요청 데이터를 실제로 저장하는 작업 수행 
 - 스케쥴링(@Scheduled) 기반의 데이터 저장 처리
 - MySQL에 데이터 저장 작업 완료시 `CouponIssueCreatedEvent` 라는 도메인 이벤트 발급(publish)
-- `CouponIssueCreatedEvent` 리스너는 @TransactionalEventListener 를 통해 트랜잭션 커밋이 완료된 couponId 를 Redis 내에 저장
+- `CouponIssueCreatedEvent` 리스너는 @TransactionalEventListener 를 통해 트랜잭션 커밋이 완료된 couponId 를 Redis 내에 Cache Aside 기반의 캐싱 처리
+<br/>
+
+저장된 데이터의 모습
+```text
+{"@class":"io.chagchagchag.project.coupon.dataaccess.cache.redis.valueobject.CouponRedisEntity","id":1,"couponAssignType":"FIFO","totalQuantity":["java.math.BigDecimal",1000],"isQuantityAvailable":false,"issueStartDate":[2024,1,1,0,0,1],"issueEndDate":[2024,11,11,23,59,59]}
+```
 <br/>
 
 
