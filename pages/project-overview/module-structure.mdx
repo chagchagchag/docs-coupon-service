@@ -10,26 +10,31 @@
 <br/>
 
 ## coupon-dataaccess
-- JPA, Querydsl, Redis, RedisScript, Caffeine 에 대한 처리 코드들을 모아두고 JPA 설정 코드들이 모여 있는 모듈입니다.
-초기 설계 단계에서 Query, SQL 들을 `coupon-dataaccess` 로 몰아두는 것이 뭔가를 일괄처리가 되도록 관리하려는 귀차니즘과 같은 생각 중 하나 처럼 생각이 되는 순간이 있었는데요. 구현을 거듭하면서 `coupon` 서비스 측면에서 data 조회의 버전을 따로 관리하는 모듈을 따로 분리해둔다면 더 나을 것이라는 판단이 들어서 `coupon-dataaccess` 모듈을 따로 구현하게 되었습니다.<br/>
+- JPA, Querydsl, Redis, RedisScript, Caffeine 에 대한 처리 코드들을 모아두고 JPA 설정 코드들이 모여 있는 모듈입니다.<br/>
+- 초기 설계 단계에서 Query, SQL 들을 `coupon-dataaccess` 로 몰아두는 것이 뭔가를 일괄처리가 되도록 관리하려는 귀차니즘과 같은 생각 중 하나 처럼 생각이 되는 순간이 있었는데요. 구현을 거듭하면서 `coupon` 서비스 측면에서 data 조회의 버전을 따로 관리하는 모듈을 따로 분리해둔다면 더 나을 것이라는 판단이 들어서 `coupon-dataaccess` 모듈을 따로 구현하게 되었습니다.<br/>
 <br/>
 
-이런 이유로 `coupon-core` 내에 정의해둔 엔티티 매핑, 캐시 VO 등과 같은 코드들을 `coupon-dataaccess` 로 다시 이관해야 하는데 아직 이 부분은 정리하지 못했습니다. 최대한 빠르게 정리 예정입니다.<br/>
+> 이런 이유로 `coupon-core` 내에 정의해둔 엔티티 매핑, 캐시 VO 등과 같은 코드들을 `coupon-dataaccess` 로 다시 이관해야 하는데 아직 이 부분은 정리하지 못했습니다. 최대한 빠르게 정리 예정입니다.<br/>
 <br/>
 
 
 ## coupon-api
 - 사용자의 접근 포인트
-- 예를 들어 쿠폰 1개에 대해 10000 명의 사용자에게 발급한다고 할 때 발급에 대한 동시성 처리를 요청들을 레디스에 저장해두는 Write Back 방식의 캐시 지연 처리를 할 수 있도록 하는 기능 
-- controller, advice
-- `coupon-dataaccess` 를 이용해서 Redis Queue 처리 작업을 하고, ErrorCode, Exception 등은 `coupon-core` 모듈을 이용
+- 사용자의 요청이 잘못 되었는지 유효성 검증 수행
+- Write Back 기반으로 요청들을 쌓아두는 역할을 수행
+- e.g. 
+  - 쿠폰 1개에 대해 10000 명의 사용자가 접속해서 발급하려 하는 경우
+- 주요 코드
+  - controller, advice
+  - `coupon-dataaccess` 를 이용해서 Redis Queue 처리 작업을 하고, ErrorCode, Exception 등은 `coupon-core` 모듈을 이용
 <br/>
 
 ## coupon-issuer
 - 쿠폰 발급기 (실제 DB에 저장하는 작업을 수행)
-- Redis 에 저장된 요청을 꺼내어서 MySQL에 저장하는 작업. 스케쥴링(@Scheduled) 기반의 데이터 배치 저장 처리
-- 데이터 저장 작업 완료시 `UserAssignedNewCouponEvent` 라는 도메인 이벤트 발급(publish)
-- @TransactionalEventListener 를 통해 트랜잭션 커밋이 완료된 couponId 를 Redis 내에 저장
+- Redis 에 저장된 쿠폰 발급 요청을 꺼내어서 MySQL에 쿠폰 발급 요청 데이터를 실제로 저장하는 작업 수행 
+- 스케쥴링(@Scheduled) 기반의 데이터 저장 처리
+- MySQL에 데이터 저장 작업 완료시 `CouponIssueCreatedEvent` 라는 도메인 이벤트 발급(publish)
+- `CouponIssueCreatedEvent` 리스너는 @TransactionalEventListener 를 통해 트랜잭션 커밋이 완료된 couponId 를 Redis 내에 저장
 <br/>
 
 
