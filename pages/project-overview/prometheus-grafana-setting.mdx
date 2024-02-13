@@ -7,7 +7,7 @@ Prometheus 를 통해 애플리케이션이 모니터링 가능하도록 하고,
 ## coupon-api 
 ### build.gradle.kts
 `spring-boot-starter-actuator`, `micrometer-registry-prometheus` 를 의존성으로 추가해줍니다. 
-```kotlin
+```kotlin filename="build.gradle.kts" {3} copy
 // ...
 
 dependencies {
@@ -24,7 +24,7 @@ dependencies {
 
 ### application-api.yml
 application-api.yml 파일에 `spring.application.name`, `server.tomcat.mbeanregistry.enabled`, `management.metrics.tags.application`, `management.endpoints.web.exposure.include = prometheus`를 추가해줍니다.
-```yaml
+```yaml filename="application-api.yml" {3} copy
 spring:
   application:
     name: coupon-api
@@ -53,7 +53,7 @@ management:
 이번에는 `coupon-issuer` 측의 설정입니다.<br/>
 ### build.gradle.kts
 `spring-boot-starter-actuator`, `micrometer-registry-prometheus` 를 의존성으로 추가해줍니다. 
-```kotlin
+```kotlin filename="build.gradle.kts" {3} copy
 // ...
 
 dependencies {
@@ -70,7 +70,7 @@ dependencies {
 
 ### application-issuer.yml
 application-issuer.yml 파일에 `spring.application.name`, `server.tomcat.mbeanregistry.enabled`, `management.metrics.tags.application`, `management.endpoints.web.exposure.include = prometheus`를 추가해줍니다.
-```yaml
+```yaml filename="application-issuer.yml" {3} copy
 spring:
   application:
     name: coupon-issuer
@@ -114,7 +114,7 @@ management:
 ## Docker-Compose Prometheus, Grafana 세팅
 ### monitoring/prometheus/config/config.yml
 `0.performance-test/monitoring/prometheus/config/config.yml` 을 아래와 같이 작성합니다.
-```yaml
+```yaml filename="config.yml" {3} copy
 global:
   scrape_interval: 5s
 
@@ -132,7 +132,7 @@ scrape_configs:
 
 ### docker-compose.yml
 `0.performance-test/monitoring/docker-compose.yml` 을 아래와 같이 작성합니다.
-```yaml
+```yaml filename="docker-compose.yml" {3} copy
 version: '3.7'
 services:
   prometheus:
