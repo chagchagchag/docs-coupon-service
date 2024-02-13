@@ -1,5 +1,6 @@
 {
     "tech-stack": "Tech Stack",
     "module-structure": "멀티 모듈 구조",
-    "locust-setting": "locust 세팅"
+    "locust-setting": "locust 세팅",
+    "prometheus-grafana-setting": "prometheus, grafana 세팅"
 }
