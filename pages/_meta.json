@@ -1,5 +1,7 @@
 {
   "project-overview": "Project Overview",
+  "coding-style": "코딩스타일",
+  "performance-test": "성능테스트",
   "index": "Introduction",
   "about": {
     "title": "About",

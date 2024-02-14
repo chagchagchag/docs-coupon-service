@@ -1,0 +1,5 @@
+{
+    "service-object-usage" : "@Service 를 프록시 객체로만 사용",
+    "factory-mapper-usage" : "객체생성은 factory, mapper 컴포넌트를 사용",
+    "multi-module-usage": "멀티모듈 구성 원칙"
+}
