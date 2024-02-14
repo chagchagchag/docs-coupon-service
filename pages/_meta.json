@@ -1,9 +1,9 @@
 {
+  "index": "Introduction",
   "project-overview": "Project Overview",
   "coding-style": "코딩스타일",
   "performance-test": "성능테스트",
   "redis-summary": "레디스 관련 개념들",
-  "index": "Introduction",
   "about": {
     "title": "About",
     "type": "page"

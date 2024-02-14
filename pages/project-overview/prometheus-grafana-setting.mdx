@@ -223,3 +223,22 @@ Prometheus URL 은 [http://host.docker.internal:9090](http://host.docker.interna
 
 설정이 완료되면 아래와 같은 화면이 나타납니다.
 ![](./img/GRAFANA-SCREENSHOT/12.png)
+<br/>
+
+## Prometheus 대시보드
+Prometheus 대시보드는 아래와 같이 확인 가능합니다.
+![](./img/PROMETHEUS-SCREENSHOT/1.png)
+<br/>
+
+![](./img/PROMETHEUS-SCREENSHOT/2.png)
+<br/>
+
+## 지표들을 지우고 싶다면
+prometheus, grafana 와 같은 시계열 데이터를 저장하는 플랫폼들은 대부분 측정한 지표들을 디스크내에 증분방식으로 쌓아둡니다. 우리가 작성한 docker-compose 파일 내에도 `volume` 항목을 보면 이런 내용들을 저장하는 부분들에 대한 내용이 있습니다.
+![](./img/METRIC-VOLUME-SCREENSHOT/1.png)
+<br/>
+
+위에서 표시된 부분에 쌓인 데이터들을 지우려면 각각의 `volume` 디렉터리를 삭제해주시면 됩니다.<br/>
+<br/>
+
+
