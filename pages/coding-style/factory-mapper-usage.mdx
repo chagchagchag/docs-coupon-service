@@ -1,1 +1,364 @@
 ## 객체생성은 factory, mapper 컴포넌트를 사용
+
+이번 문서에서 다뤄볼 내용은 아래와 같습니다.
+- Entity 생성은 Factory 메서드에서 생성하도록 설계 
+  - Entity 생성은 Factory 객체로 생성하게끔 코드의 구현과 설계를 했습니다.
+  - Entity 객체 생성을 코드 여기 저기에서 Lombok 의 builder 를 사용해서 Entity 객체를 생성하는 것이 2년 전에 신규 프로젝트를 수행할 때에는 이상할 정도로 신경이 쓰였습니다. 시간이 지나서 생각해보니 Entity 를 새로 생성하는 부분은 `@Component` 로 선언된 별도의 Factory 객체 내에 factory 메서드를 생성하는 것이 좋다는 생각에 도달했습니다.
+  - 이렇게 하면 Entity 객체의 생성을 Factory 메서드에서 수행하면 코드레벨에서 하드코딩하는 것으로 인해 발생하는 의도에 어긋나는 객체생성 동작을 방지하게끔 하고 추후 유지보수 사항 발생시, 사용 중인 메서드를 수정하는 것으로 일괄적인 수정이 가능하도록 하는 것이 가능해지기 때문입니다.
+  - 또한 객체 생성 구문을 테스트 해야 할때 Factory 메서드 하나만 수정하면 되기에 테스트 코드 관리에도 조금 더 요긴해집니다.
+  - 객체 생성 메서드에 이름을 지정할 수 있고 메서드 오버로딩이 가능하기에 팩토리 메서드의 메서드 명과 인자 값들을 통해 어떤 역할을 하는지 유추할 수 있기에 사용성 측면에서도 장점이 큽니다.
+  - 기본값 등에 대한 명세들을 제공하는 Enum 등과 결합해서 하나의 팩토리 메서드 들의 인자값의 생성 범위를 비즈니스 요건에 맞도록 지속적으로 규격화 할 수 있다는 점도 장점입니다.
+- value object 는 mapper 를 통해 변환/생성하도록 설계
+  - API 계층의 Request/Response 또는 서로 다른 계층 간의 Value Object 변환 시에는 mapper 객체를 사용해서 변환/생성하도록 설계했습니다.
+  - 이렇게 하면 객체 변환/생성 로직을 하드 코딩하는 것으로 인해 유지보수 사항이 발생했을 때 하드코딩 된 객체 생성 로직을 일일이 찾아서 고쳐야 하는 점을 방지할 수 있다는 것이 장점입니다.
+<br/>
+
+## Entity 생성은 Factory 메서드에서 생성하도록 설계
+예를 들어 아래와 같은 필드들을 가지고 있는 `CouponEntity` 가 있습니다.
+### CouponEntity.java
+```java filename="CouponEntity.java" {0} copy
+// ...
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Getter
+@Entity
+@Table(name = "coupons")
+public class CouponEntity extends BaseDateTimeEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String title;
+
+    @Column(nullable = false)
+    @Enumerated(value = EnumType.STRING)
+    private CouponAssignType couponAssignType;
+
+    private BigDecimal totalQuantity;
+
+    @Column(nullable = false)
+    private BigDecimal issuedQuantity;
+
+    @Column(nullable = false)
+    private BigDecimal discountAmount;
+
+    @Column(nullable = false)
+    private BigDecimal minAvailableAmount;
+
+    @Column(nullable = false, name = "issue_start_datetime")
+    private LocalDateTime issueStartDateTime;
+
+    @Column(nullable = false, name = "issue_end_datetime")
+    private LocalDateTime issueEndDateTime;
+
+    @Builder(builderClassName = "DefaultBuilder", builderMethodName = "defaultBuilder")
+    public CouponEntity(
+        Long id, String title,
+        CouponAssignType couponAssignType,
+        BigDecimal totalQuantity, BigDecimal issuedQuantity,
+        BigDecimal discountAmount, BigDecimal minAvailableAmount,
+        LocalDateTime issueStartDateTime, LocalDateTime issueEndDateTime
+    ){
+        this.id = id;
+        this.title = title;
+        this.couponAssignType = couponAssignType;
+        this.totalQuantity = totalQuantity;
+        this.issuedQuantity = issuedQuantity;
+        this.discountAmount = discountAmount;
+        this.minAvailableAmount = minAvailableAmount;
+        this.issueStartDateTime = issueStartDateTime;
+        this.issueEndDateTime = issueEndDateTime;
+    }
+
+    @Builder(builderClassName = "FifoBuilderFromNow", builderMethodName = "fromNowFifoBuilder")
+    public CouponEntity(
+        Long id,    String title,
+        BigDecimal totalQuantity, BigDecimal issuedQuantity,
+        BigDecimal discountAmount, BigDecimal minAvailableAmount,
+        LocalDateTime issueEndDateTime
+    ){
+        this.id = id;
+        this.title = title;
+        this.couponAssignType = CouponAssignType.FIFO;
+        this.totalQuantity = totalQuantity;
+        this.issuedQuantity = issuedQuantity;
+        this.discountAmount = discountAmount;
+        this.minAvailableAmount = minAvailableAmount;
+        this.issueStartDateTime = LocalDateTime.now();
+        this.issueEndDateTime = issueEndDateTime;
+    }
+
+    public Boolean hasIssueQuantityAvailable(){
+        if (wasNeverIssued()) return true;
+        return hasEnoughQuantity();
+    }
+
+    public Boolean wasNeverIssued(){
+        return totalQuantity == null;
+    }
+
+    public Boolean hasEnoughQuantity(){
+        if(totalQuantity == null) return true; // 쿠폰이 무한일 경우
+        return totalQuantity.compareTo(issuedQuantity) > 0;
+    }
+
+    public Boolean isIssueDateAvailable(){
+        LocalDateTime now = LocalDateTime.now();
+        return issueStartDateTime.isBefore(now) && issueEndDateTime.isAfter(now);
+    }
+
+    public void validateCouponIssuable(){
+        final LocalDateTime now = LocalDateTime.now();
+        if(!hasEnoughQuantity())
+            throw new CouponIssueException(EXCEEDED_COUPON_ISSUE_QUANTITY, EXCEEDED_COUPON_ISSUE_QUANTITY.message);
+
+        if(issueEndDateTime.isBefore(now))
+            throw new CouponIssueException(UNAVAILABLE_COUPON_ISSUE_DATE, UNAVAILABLE_COUPON_ISSUE_DATE.message);
+    }
+
+    public Boolean isCouponQuantityFull(){
+        LocalDateTime now = LocalDateTime.now();
+        return issueEndDateTime.isBefore(now) || !hasEnoughQuantity();
+    }
+
+    public void issue(){
+        if(!hasIssueQuantityAvailable())
+            throw new CouponIssueException(
+                EXCEEDED_COUPON_ISSUE_QUANTITY,
+                "발급 가능 한도 초과 (total = %s, issued = %s)".formatted(totalQuantity, issuedQuantity)
+            );
+
+        if(!isIssueDateAvailable()){
+            throw new CouponIssueException(
+                UNAVAILABLE_COUPON_ISSUE_DATE,
+                "발급 가능 기간이 아닙니다. 요청일자 : %s, 발급 가능 기간 : %s ~ %s".formatted(LocalDateTime.now(), issueStartDateTime, issueEndDateTime)
+            );
+        }
+
+        issuedQuantity = issuedQuantity.add(BigDecimal.ONE);
+    }
+}
+```
+<br/>
+
+### CouponEntityFactory.java
+`CouponEntityFactory` 클래스는 `CouponEntity` 객체를 생성하는 팩토리 객체 역할을 합니다.<br/>
+`@Component` 로 등록해서 스프링 컨테이너 내에서 객체의 생명주기가 관리되도록 했고, 스프링 프레임워크로부터 의존성 주입을 받을수 있도록 했습니다.<br/>
+
+```java filename="CouponEntityFactory.java" {0} copy
+// ... 
+@Component
+public class CouponEntityFactory {
+
+    /**
+     * title 외의 기본필드 설정이 갖춰진 Fifo 쿠폰을 생성 (할인액, 최소할인금액 등은 디폴트 값을 따름)
+     * @param title 쿠폰명
+     * @return CouponEntity
+     */
+    public CouponEntity newDefaultCoupon(
+        String title
+    ){
+        final LocalDateTime now = LocalDateTime.now();
+        final LocalDateTime end = now.plus(DefaultDuration.THOUSAND_DAY.getTemporalAmount());
+
+        return CouponEntity.defaultBuilder()
+                .title(title)
+                .couponAssignType(CouponAssignType.FIFO)
+                .totalQuantity(DefaultQuantity.TOTAL_QUANTITY.getQuantity())
+                .issuedQuantity(DefaultQuantity.ISSUED_QUANTITY.getQuantity())
+                .discountAmount(DefaultAmount.DISCOUNT_AMOUNT.getAmount())
+                .minAvailableAmount(DefaultAmount.MIN_AVAILABLE_AMOUNT.getAmount())
+                .issueStartDateTime(now)
+                .issueEndDateTime(end)
+                .build();
+    }
+
+    public CouponEntity newDefaultCoupon(
+        String title, Long couponId
+    ){
+        final LocalDateTime now = LocalDateTime.now();
+        final LocalDateTime end = now.plus(DefaultDuration.THOUSAND_DAY.getTemporalAmount());
+
+        return CouponEntity.defaultBuilder()
+                .id(couponId)
+                .title(title)
+                .couponAssignType(CouponAssignType.FIFO)
+                .totalQuantity(DefaultQuantity.TOTAL_QUANTITY.getQuantity())
+                .issuedQuantity(DefaultQuantity.ISSUED_QUANTITY.getQuantity())
+                .discountAmount(DefaultAmount.DISCOUNT_AMOUNT.getAmount())
+                .minAvailableAmount(DefaultAmount.MIN_AVAILABLE_AMOUNT.getAmount())
+                .issueStartDateTime(now)
+                .issueEndDateTime(end)
+                .build();
+    }
+
+    /**
+     * title, totalQuantity 외의 기본필드 설정이 갖춰진 Fifo 쿠폰을 생성 (할인액, 최소할인금액 등은 디폴트 값을 따름)
+     * @param title 쿠폰 명
+     * @param totalQuantity 쿠폰 전체 수량
+     * @return CouponEntity
+     */
+    public CouponEntity newDefaultCoupon(
+        String title,
+        BigDecimal totalQuantity
+    ){
+        final LocalDateTime now = LocalDateTime.now();
+        final LocalDateTime end = now.plus(DefaultDuration.THOUSAND_DAY.getTemporalAmount());
+
+        return CouponEntity.defaultBuilder()
+                .title(title)
+                .couponAssignType(CouponAssignType.FIFO)
+                .totalQuantity(totalQuantity)
+                .issuedQuantity(BigDecimal.ZERO)
+                .discountAmount(DefaultAmount.DISCOUNT_AMOUNT.getAmount())
+                .minAvailableAmount(DefaultAmount.MIN_AVAILABLE_AMOUNT.getAmount())
+                .issueStartDateTime(now)
+                .issueEndDateTime(end)
+                .build();
+    }
+
+    public CouponEntity newDefaultCoupon(
+        String title,
+        BigDecimal totalQuantity, BigDecimal issuedQuantity
+    ){
+        final LocalDateTime now = LocalDateTime.now();
+        final LocalDateTime end = now.plus(DefaultDuration.THOUSAND_DAY.getTemporalAmount());
+
+        return CouponEntity.defaultBuilder()
+                .title(title)
+                .couponAssignType(CouponAssignType.FIFO)
+                .totalQuantity(totalQuantity)
+                .issuedQuantity(issuedQuantity)
+                .discountAmount(DefaultAmount.DISCOUNT_AMOUNT.getAmount())
+                .minAvailableAmount(DefaultAmount.MIN_AVAILABLE_AMOUNT.getAmount())
+                .issueStartDateTime(now)
+                .issueEndDateTime(end)
+                .build();
+    }
+
+    public CouponEntity newInfiniteCoupon(
+        String title
+    ){
+        final LocalDateTime now = LocalDateTime.now();
+        final LocalDateTime end = now.plus(DefaultDuration.THOUSAND_DAY.getTemporalAmount());
+
+        return CouponEntity.defaultBuilder()
+                .title(title)
+                .couponAssignType(CouponAssignType.FIFO)
+                .totalQuantity(null)
+                .issuedQuantity(DefaultQuantity.ISSUED_QUANTITY.getQuantity())
+                .discountAmount(DefaultAmount.DISCOUNT_AMOUNT.getAmount())
+                .minAvailableAmount(DefaultAmount.MIN_AVAILABLE_AMOUNT.getAmount())
+                .issueStartDateTime(now)
+                .issueEndDateTime(end)
+                .build();
+    }
+
+    public CouponEntity newDefaultCouponWithExpiration(
+        String title,
+        LocalDateTime issueStartDateTime,
+        LocalDateTime issueEndDateTime
+    ){
+        return CouponEntity.defaultBuilder()
+                .title(title)
+                .couponAssignType(CouponAssignType.FIFO)
+                .totalQuantity(DefaultQuantity.TOTAL_QUANTITY.getQuantity())
+                .issuedQuantity(DefaultQuantity.ISSUED_QUANTITY.getQuantity())
+                .discountAmount(DefaultAmount.DISCOUNT_AMOUNT.getAmount())
+                .minAvailableAmount(DefaultAmount.MIN_AVAILABLE_AMOUNT.getAmount())
+                .issueStartDateTime(issueStartDateTime)
+                .issueEndDateTime(issueEndDateTime)
+                .build();
+    }
+
+    public CouponEntity newDefaultCouponWithExpiration(
+            String title,
+            BigDecimal issuedQuantity
+    ){
+        final LocalDateTime now = LocalDateTime.now();
+        final LocalDateTime end = now.plus(DefaultDuration.THOUSAND_DAY.getTemporalAmount());
+
+        return CouponEntity.defaultBuilder()
+                .title(title)
+                .couponAssignType(CouponAssignType.FIFO)
+                .totalQuantity(DefaultQuantity.TOTAL_QUANTITY.getQuantity())
+                .issuedQuantity(issuedQuantity)
+                .discountAmount(DefaultAmount.DISCOUNT_AMOUNT.getAmount())
+                .minAvailableAmount(DefaultAmount.MIN_AVAILABLE_AMOUNT.getAmount())
+                .issueStartDateTime(now)
+                .issueEndDateTime(end)
+                .build();
+    }
+
+    public CouponEntity newDefaultCouponWithExpiration(
+            String title,
+            BigDecimal issuedQuantity,
+            LocalDateTime issueStartDateTime, LocalDateTime issueEndDateTime
+    ){
+        return CouponEntity.defaultBuilder()
+                .title(title)
+                .couponAssignType(CouponAssignType.FIFO)
+                .totalQuantity(DefaultQuantity.TOTAL_QUANTITY.getQuantity())
+                .issuedQuantity(issuedQuantity)
+                .discountAmount(DefaultAmount.DISCOUNT_AMOUNT.getAmount())
+                .minAvailableAmount(DefaultAmount.MIN_AVAILABLE_AMOUNT.getAmount())
+                .issueStartDateTime(issueStartDateTime)
+                .issueEndDateTime(issueEndDateTime)
+                .build();
+    }
+
+    public CouponEntity newDefaultCouponWithExpiration(
+        String title,
+        BigDecimal totalQuantity, BigDecimal issuedQuantity,
+        LocalDateTime issueStartDateTime, LocalDateTime issueEndDateTime
+    ){
+        return CouponEntity.defaultBuilder()
+                .title(title)
+                .couponAssignType(CouponAssignType.FIFO)
+                .totalQuantity(totalQuantity)
+                .issuedQuantity(issuedQuantity)
+                .discountAmount(DefaultAmount.DISCOUNT_AMOUNT.getAmount())
+                .minAvailableAmount(DefaultAmount.MIN_AVAILABLE_AMOUNT.getAmount())
+                .issueStartDateTime(issueStartDateTime)
+                .issueEndDateTime(issueEndDateTime)
+                .build();
+    }
+
+}
+```
+
+주요 메서드는 `newDefaultCoupon(...)`, `newInfiniteCoupon(title)`, `newDefaultCouponWithExpiration(...)` 이 있고, 인자값을 통해 의도를 파악할 수 있도록 구성했고, 디폴트 값을 설정하는 부분의 경우 Enum 을 통해서 디폴트 값이 설정될 수 있도록 구성했습니다.<br/>
+
+`newDefaultCoupon(...)` : 기본 디폴트 옵션 필드들이 설정된 객체를 생성하는 역할을 수행
+- `newDefaultCoupon(String title)`
+  - 쿠폰명 하나만 지정하고, 나머지 필드들은 기본값으로 채웁니다.
+- `newDefaultCoupon(String title, Long couponId)`
+  - 쿠폰명, 쿠폰 ID 만 지정하고, 나머지 필드들은 기본값으로 채웁니다.
+- `newDefaultCoupon(String title, BigDecimal totalQuantity)`
+  - 쿠폰명, 발행가능 총량 만 지정하고 나머지 필드들은 기본값으로 채웁니다.
+- `newDefaultCoupon(String title, BigDecimal totalQuantity, BigDecimal issuedQuantity)`
+  - 쿠폰명, 발행가능 총량, 발행 쿠폰 수(issuedQuantity)를 지정하고 나머지 필드들은 기본값으로 채웁니다.
+<br/>
+
+`newInfiniteCoupon(...)` : 발행 가능 쿠폰 수가 무한 일때에 대한 팩토리 메서드입니다.
+- `newInfiniteCoupon(String title)`
+  - 발행 가능 쿠폰수가 무한일 때에 대한 객체 생성을 하는 팩토리 메서드 입니다.
+<br/>
+
+`newDefaultCouponWithExpiration(...)` : 만료기한을 직접 지정하되 나머지 필드들은 기본값으로 지정하는 메서드 들 입니다.
+- `newDefaultCouponWithExpiration(String title, LocalDateTime issueStartDateTime, issueEndDateTime)`
+  - 쿠폰명, 발행시작일자, 발행종료일자는 직접 지정하고 나머지 필드들은 디폴트 값으로 설정하는 팩토리 메서드 입니다.
+- `newDefaultCouponWithExpiration(String title, BigDecimal issuedQuantity)`
+  - 쿠폰명, 발행 쿠폰 수량은 직접 지정하고 나머지 필드들은 디폴트 값으로 설정하는 팩토리 메서드 입니다.
+- `newDefaultCouponWithExpiration(String title, BigDeciaml issuedQuantity, LocalDateTime issueStartDateTime, issueEndDateTime)`
+  - 쿠폰명, 발행 쿠폰 수량, 발행시작일자, 발행종료일자를 직접 지정하고 나머지 필드들은 모두 디폴트 값으로 설정하는 팩토리 메서드 입니다.
+- `newDefaultCouponWithExpiration(String title, BigDecimal totalQuantity, BigDeciaml issuedQuantity, LocalDateTime issueStartDateTime, LocalDateTime issueEndDateTime)`
+  - 쿠폰명, 발행 쿠폰 최대치, 발행 쿠폰 수량, 발행시작일자, 발행종료일자를 직접 지정하고 나머지 필드들은 모두 디폴트 값으로 설정하는 팩토리 메서드 입니다. 
+<br/>
+
+## value object 는 mapper 를 통해 변환/생성하도록 설계
+<br/>
+
+
+
