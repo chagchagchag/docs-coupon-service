@@ -1,2 +1,24 @@
 ## 객체 간 의존성 단순화 (순환참조 방지)
 
+
+## 기본적인 컨셉
+주요 원칙은 아래와 같습니다.
+- 단위 기능 클래스 안에서 다른 단위기능 클래스를 의존성 주입받지 않는다. 단위기능 클래스는 단위 기능을 하는 데에만 집중한다.
+- 단위 기능을 접근할 때는 `@Service` 로 정의한 컴포넌트를 통해 접근한다. `@Service` 에서는 단위기능을 불러들여서 의존성을 주입받아서 비즈니스 로직을 정의한다. 
+- 하나의 계층에 존재하는 Service A 와 Service B 는 서로를 참조하지 않으며 의존성 주입 역시 받지 않는 서로 독립적인 객체로 정의하는 것을 원칙으로 한다.
+- 이렇게 중간에서 각각이 독립적인 역할을 하도록 Service 객체를 구성하며 대리인 역할을 하게끔 한다. 이렇게 대리인 역할의 객체에게만 @Service 어노테이션을 붙이기로 하며, `-Service` 접미사를 붙인다. 
+- 그 외의 단위기능의 경우 Repository 로 정의하거나 `@Component` 로 정의해서 단위 기능임을 확실하게 표현한다.
+- e.g. `application` 계층에서 dataaccess 계층의 CouponJpaRepository 를 접근하려는 경우
+  - `coupon-api` 모듈 내의 `application` 계층에서는 단순하게 `dataaccess` 계층에서 대리인 역할을 하는 객체만 알고 있으면 되고 어떤 함수를 호출하면 되는지만 알면 됩니다.
+  - 따라서 `CouponApiApplicationService` 에서는 Data에 접근이 필요할 경우 단순하게 `CouponDataAccessService` 라는 대리인 객체를 의존성 주입 받은 후 `CouponDataAccessService` 내에 정의해둔 비즈니스 로직을 통해서 접근하도록 하면 됩니다.
+<br/>
+
+### e.g. issue() 로직을 통해 MySQL에 쿠폰을 발급하는 기능
+![](./img/REDUCE-OBJECT-DEPENDENCY/1.png)
+<br/>
+
+
+### e.g. API 의 Request 를 Redis 에 enqueue 하는 기능 
+![](./img/REDUCE-OBJECT-DEPENDENCY/2.png)
+<br/>
+
