@@ -1,1 +1,124 @@
 ## 도메인 이벤트 기반 데이터 처리
+이번 예제 프로젝트에서는 예제 정도의 레벨에서 싱글 인스턴스에서의 도메인 이벤트 기반 데이터 처리를 예제로 만들었습니다.<br/>
+
+트래픽이 높아질 경우에 대해서는 보통 SAGA, Outbox 와 함께 분산환경에서의 EDA (Event Driven Architecture) 구조로 전환을 하겠지만, 이번 documentation 페이제서는 이런 내용들은 제외하고 가능한 한도 내에서 가장 단순한 구조로 예제를 마련했습니다.<br/>
+
+도메인 이벤트 기반 데이터 처리는 데이터 영역(JPA, Querydsl, Mybatis, Jdbctemplate) 에서 데이터의 생성/수정/삭제 등의 연산이 발생했을 때 이것에 대해 도메인 이벤트를 발급(Publish) 하는 것으로 dataaccess 에서의 역할을 수행합니다.<br/>
+그리고 도메인 이벤트를 수신하는 리스너 측에서 이 도메인 이벤트내의 정보 (id, 필드 값 등)을 이용해서 후처리(Cache Put, 메일 전송 등)작업을 수행하게 됩니다.<br/>
+이렇게 `dataaccess` 계층에서 변경이 발생하면 이벤트를 `발급(publish)`하고 `domain` 계층의 리스너에서 이벤트를 `수신(Listen)`했을 경우 이에 맞는 비즈니스 처리를 수행하는 방식으로 하는 것을 도메인 이벤트 기반 데이터처리라고 이야기합니다. 이렇게 하는 것의 장점은 `dataaccess` 측에서는 데이터 처리에만 집중하고 비즈니스 로직의 간섭이 줄고 프로젝트 전반적으로 결합도가 떨어지기에 프로젝트의 콜스택을 추적해서 유지보스를 해야 하는 피로도를 다소 낮출수 있다는 장점이 있습니다<br/>
+
+Coupon 발급 시나리오를 요약해보면 다음과 같습니다.
+- `dataaccess` 계층에서 couponId 에 대해 데이터를 저장
+- 데이터를 저장하는 동작은 `domain` 계층에서는 DomainEvent 로 간주되는데, 따라서 `domain` 계층에서는 `CouponIssueCreatedEvent` 를 생성해서 스프링 컨테이너 내에 이벤트를 전송합니다.
+- 스프링 컨테이너 내의 `@TransactionalEventHandler` 와 함께 이벤트 타입을 정의한 `CouponIssueCreatedEvent` 에 대한 리스너에서 도메인 이벤트에 맞는 후처리 작업을 수행합니다.
+<br/>
+
+## 데이터 저장 작업 완료 → `CouponIssueCreatedEvent` 발급
+데이터를 저장하는 로직은 아래와 같습니다. 데이터 저장이 완료되면 `CouponIssueCreatedEvent`를 발급합니다. 데이터 발급 작업에만 집중하고 데이터 커밋이 이뤄진 후의 이후의 작업은 `Listener` 측에 위임합니다.<br/>
+```java filename="CouponIssuerScheduler.java" {} copy
+package io.chagchagchag.project.coupon.issuer.application;
+
+// ...
+
+@Slf4j
+@RequiredArgsConstructor
+@EnableScheduling
+@Component
+public class CouponIssuerScheduler {
+    private final CouponIssueRedisRepository couponIssueRedisRepository;
+    private final CouponIssueDataAccessService couponIssueDataAccessService;
+    private final CouponDomainService couponDomainService;
+
+    @Scheduled(fixedDelay = 1000)
+    @Transactional
+    public void issue() throws JsonProcessingException {
+        // ...
+        while(couponIssueRedisRepository.existsWaitingForBeingIssued()){
+            // 작업 큐 인출 (poll())
+            CouponIssueQueueDto queueDto = couponIssueRedisRepository.pollOne();
+
+            // 쿠폰 발급 (issue)
+            couponIssueDataAccessService.issue(queueDto.couponId(), queueDto.userId());
+
+            // DomainEvent Publish
+            log.info("[Publish] start >> " + queueDto);
+            couponDomainService.publishEvent(queueDto.couponId());
+            log.info("[Publish] end >> " + queueDto);
+            couponIssueRedisRepository.removeOldestOne();
+        }
+    }
+}
+```
+<br/>
+
+## 쿠폰 도메인 이벤트를 발급(pulish) 하는 로직 (CouponDomainService::pulishEvent(couponId))
+스프링 컨테이너 내에 `CouponIssueCreatedEvent` 를 발급(publish)합니다.<br/>
+```java filename="CouponDomainService.java" {0} copy
+package io.chagchagchag.project.coupon.issuer.domain;
+
+// ...
+
+@Slf4j
+@RequiredArgsConstructor
+@Service
+public class CouponDomainService {
+    private final ApplicationEventPublisher applicationEventPublisher;
+    private final CouponIssueCreatedEventFactory couponIssueCreatedEventFactory;
+
+    private final CouponCacheService couponCacheService;
+
+    public void publishEvent(Long couponId){
+        final CouponIssueCreatedEvent couponIssueCreatedEvent = couponIssueCreatedEventFactory.defaultEvent(couponId);
+        applicationEventPublisher.publishEvent(couponIssueCreatedEvent);
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onCouponIssueCreatedEvent(CouponIssueCreatedEvent event){
+        // ...
+    }
+}
+```
+<br/>
+
+## CouponIssueCreatedEvent
+쿠폰 생성 이벤트 발생시 생성할 객체인 CouponIssueCreatedEvent 는 아래와 같습니다.<br/>
+```java filename="CouponIssueCreatedEvent.java" {0} copy
+public record CouponIssueCreatedEvent(
+    Long couponId
+) {
+}
+```
+<br/>
+
+
+## 도메인 이벤트 리스너 : @TransacationalEventListener 
+`CouponIssueCreatedEvent` 를 수신한 후 데이터 저장 후의 후처리 작업을 수행하는 도메인 이벤트 리스너의 모습은 아래와 같습니다.
+```java filename="CouponDomainService.java" {} copy
+package io.chagchagchag.project.coupon.issuer.domain;
+// ...
+@Slf4j
+@RequiredArgsConstructor
+@Service
+public class CouponDomainService {
+    private final ApplicationEventPublisher applicationEventPublisher;
+    private final CouponIssueCreatedEventFactory couponIssueCreatedEventFactory;
+    private final CouponCacheService couponCacheService;
+
+    public void publishEvent(Long couponId){
+        // ...
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onCouponIssueCreatedEvent(CouponIssueCreatedEvent event){
+        log.info("issue complete. Domain Event handler start >>> ");
+        couponCacheService.putRedisCouponCache(event.couponId());
+        couponCacheService.putLocalCouponCache(event.couponId());
+        log.info("issue complete. Domain Event handler end >>> ");
+    }
+}
+```
+<br/>
+
+데이터를 저장한 이후에는 API 에서 Redis 에 어떤 Coupon 들이 있는지 조회할 수 있도록 couponId 를 저장합니다.<br/>
+<br/>
+
