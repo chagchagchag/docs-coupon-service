@@ -51,7 +51,8 @@ public class CouponIssuerScheduler {
 ```
 <br/>
 
-## 쿠폰 도메인 이벤트를 발급(pulish) 하는 로직 (CouponDomainService::pulishEvent(couponId))
+## CouponDomainService::pulishEvent(couponId)
+쿠폰 도메인 이벤트를 발급(pulish) 하는 로직입니다.<br/>
 스프링 컨테이너 내에 `CouponIssueCreatedEvent` 를 발급(publish)합니다.<br/>
 ```java filename="CouponDomainService.java" {0} copy
 package io.chagchagchag.project.coupon.issuer.domain;
@@ -91,8 +92,9 @@ public record CouponIssueCreatedEvent(
 <br/>
 
 
-## 도메인 이벤트 리스너 : @TransacationalEventListener 
-`CouponIssueCreatedEvent` 를 수신한 후 데이터 저장 후의 후처리 작업을 수행하는 도메인 이벤트 리스너의 모습은 아래와 같습니다.
+## @TransacationalEventListener 
+도메인 이벤트 리스너입니다.<br/>
+`CouponIssueCreatedEvent` 를 수신한 후 데이터 저장 후의 후처리 작업을 수행하는 도메인 이벤트 리스너의 모습은 아래와 같습니다.<br/>
 ```java filename="CouponDomainService.java" {} copy
 package io.chagchagchag.project.coupon.issuer.domain;
 // ...
