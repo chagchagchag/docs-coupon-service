@@ -1,1 +1,179 @@
 ## 레디스 자료구조들
+- String
+- LIST
+- SET
+- Sorted Set
+<br/>
+
+
+SortedSet<br/> 
+예를 들면, 주식 종목 검색이나 주식 종목 초성검색을 구현할 때 Sorted Set을 사용합니다.<br/>
+
+List, Set<br/>
+List 의 LPUSH, LPOP, RPUSH, RPOP 을 적절하게 활용해서 작업 대기열을 구성할 수도 있습니다. 요청의 고유값을 식별하기 위해서는 Set 에 요청 ID 를 기록해두는 방식을 사용합니다.<br/>
+최근 트렌드는 가급적 작업 대기열 등은 Kafka,Kafka Streams 또는 RabbitMQ를 사용하는 추세입니다. 하지만 팀내 인력상황, 마감기한 및 여러가지 운영 요소로 인해 큰 비용이 필요하지 않을 경우 간단하게 레디스 기반으로 작업 대기열을 구성하는 경우도 많습니다.<br/> 
+이 경우, Redis 서버가 다운될 경우 작업 대기열의 데이터들 모두 유실될 수 있다는 점에 착안해서 예외 처리등을 명확히 해둬야 합니다.<br/>
+<br/>
+
+String<br/>
+특정 값을 저장하는 용도로 사용합니다. 단순 문자열을 저장할 수도 있겠지만 구분자(`DELIMITER`)를 기반으로 여러가지 요청 식별자를 조합해서 어떤 요청이 있었는지를 기반으로 조회가 가능하도록 저장하는 경우도 많습니다.<br/>
+<br/>
+
+## String 자료구조 
+단순한 문자열 데이터 형식<br/>
+주요 연산으로는 set, get 이 있습니다.<br/>
+set, get 은 시간복잡도가 각각 O(1) 입니다.<br/>
+
+### e.g. set 
+```bash filename="redis-cli" {0} copy
+set coupon:1 "Apple 50% Discount Event"
+OK
+```
+<br/>
+
+### e.g. get 
+```bash filename="redis-cli" {0} copy
+get coupon:1
+"Apple 50% Discount Event"
+```
+
+이렇게 생성한 자료구조는 del 명령어로 삭제 가능합니다.<br/>
+
+## List 자료구조 
+리스트와 같은 선형자료 구조<br/>
+LPUSH 로 리스트의 제일 왼쪽(head)에 데이터를 추가할 수도 있고 RPUSH 로 리스트의 제일 오른쪽(tail)에 데이터를 추가할 수 있습니다.<br/>
+
+### LRANGE
+- [redis.io/commands - LRANGE](https://redis.io/commands/lrange/)
+- LIST 내의 지정된 범위에 해당하는 요소들을 반환합니다.
+- 시간복잡도 O(S+N) 에 해당하는 연산입니다.
+- S는 시작 Offset 의 Head/Tail 로부터의 거리 (distance)를 의미합니다.
+- N은 지정된 Range 내에 속한 요소들의 개수를 의미합니다.
+- `LRANGE key start stop`
+<br/>
+
+### LPUSH
+- [redis.io/commands - LPUSH](https://redis.io/commands/lpush/)
+- 리스트의 제일 왼쪽(head)에 데이터를 추가하는 연산입니다. 
+- 시간복잡도 O(1) 에 해당하는 연산입니다.
+- `LPUSH key element [element ...]`
+<br/>
+
+### RPUSH
+- [redis.io/commands - RPUSH](https://redis.io/commands/rpush/)
+- 리스트의 제일 오른쪽(tail)에 데이터를 추가하는 연산입니다. 
+- 시간복잡도 O(1) 에 해당하는 연산입니다.
+- `RPUSH key element [element ...]`
+<br/>
+
+### LPOP
+- [redis.io/commands - LPOP](https://redis.io/commands/lpop/)
+- 리스트의 첫 번째 요소(Head)를 지운 후 리턴하는 연산입니다.
+- 시간복잡도 O(N) 에 해당하는 연산입니다.
+- `LPOP key [count]`
+- 리스트의 첫 번째로부터 몇 번째 요소를 지울지를 지정해서 지울 수도 있는데 이 경우 `LPOP key 3` 과 같은 명령을 내리면 제일 처음 요소로부터 3개의 요소를 POP 하게 됩니다.
+<br/>
+
+### RPOP
+- [redis.io/commands - RPOP](https://redis.io/commands/rpop/)
+- 리스트의 제일 마지막 요소(Tail)을 지운 후 리턴하는 연산입니다.
+- 시간복잡도 O(N) 에 해당하는 연산입니다.
+- `RPOP key [count]`
+- 리스트의 마지막으로부터 몇 번째 요소를 지울지를 지정해서 지울 수도 있는데 이 경우 `LPOP key 3` 과 같은 명령을 내리면 맨끝에서 3개의 요소를 POP 하게 됩니다.
+<br/>
+
+### LLEN
+- [redis.io/commands - LLEN](https://redis.io/commands/llen/)
+- 현재 리스트의 사이즈를 리턴합니다.
+- 시간복잡도 O(1) 에 해당하는 연산입니다.
+- `LLEN key`
+<br/>
+
+### LPOS
+- [redis.io/commands - LPOS](https://redis.io/commands/lpos/)
+- 리스트 내에서 일치하는 요소를 찾는 연산입니다. 
+- 시간복잡도 O(N) 에 해당하는 연산입니다. 만약 MAXLEN 을 명시해서 호출하면 상수 시간 내에 수행됩니다.
+- `LPOS key element [RANK rank] [COUNT num-matches] [MAXLEN len]`
+<br/>
+
+
+## SET 자료구조 
+어느 언어에서든 제공되는 Set 개념에 해당하는 자료구조입니다.<br/>
+
+### SMEMBERS
+- [redis.io/commands - SMEMBERS](https://redis.io/commands/smembers/)
+- `key` 에 해당하는 Set 에 저장된 모든 요소들을 반환합니다. 
+- 시간복잡도 O(N) 에 해당하는 연산입니다. 
+- `SMEMBERS key`
+<br/>
+
+### SADD
+- [redis.io/commands - SADD](https://redis.io/commands/sadd/)
+- `key` 에 해당하는 Set 에 요소를 추가합니다. 이때 요소 하나만 지정할 수도 있고 요소 여러개를 지정해서 여러개의 요소를 한번에 추가할 수 도 있습니다.
+- 요소 하나를 추가할 때는 시간복잡도 O(1) 에 해당하는 연산입니다. 만약 요소 K 개를 하나의 명령어로 추가할 경우에는 O(K) 의 시간복잡도를 가집니다.
+- `SADD key member [member ...]`
+<br/>
+
+### SISMEMBER
+- [redis.io/commands - SISMEMBER](https://redis.io/commands/sismember/)
+- `key` 에 해당하는 Set 에 `member` 에 해당하는 요소가 존재하는지 검사합니다. 존재한다면 `1`을, 존재하지 않는다면 `0` 을 리턴합니다.
+- 시간복잡도 O(1) 에 해당하는 연산입니다.
+- `SISMEMBER key member`
+<br/>
+
+### SCARD
+- [redis.io/commands - SCARD](https://redis.io/commands/scard/)
+- `key` 에 해당하는 Set의 사이즈(Cardinality, 요소의 갯수)를 리턴합니다.
+- 시간복잡도 O(1) 에 해당하는 연산입니다.
+- `SCARD key`
+<br/>
+
+### SREM
+- [redis.io/commands - SREM](https://redis.io/commands/srem/)
+- `key` 에 해당하는 Set 내에서 인자값으로 전달받은 `member`를 삭제하는 연산입니다. 지우고자 하는 요소가 여러개라면 지루려는 요소들을 모두 인자값으로 전달해주면 됩니다.
+- 지워야하는 요소수가 K개일 경우 시간복잡도 O(K) 가 소요되는 연산입니다.
+- `SREM key member [member ...]`
+<br/>
+
+## Sorted Set
+스코어를 기반으로 순서를 지정해서 정렬된 상태로 저장하는 문자열 컬렉션입니다.<br/>
+Set 자료구조이므로 중복을 허용하지 않습니다.<br/>
+
+### ZRANGE
+- [redis.io/commands - ZRANGE](https://redis.io/commands/zrange/)
+- `key` 에 해당하는 SortedSet 에서 cli 에 명시한 Range 에 해당하는 요소들을 리턴하는 연산입니다.
+- O(log(N)+M) 의 시간복잡도가 소요됩니다. `N` 은 정렬된 집합의 요소 수를 의미하며, `M` 은 반환된 요소 수를 의미합니다.
+- `ZRANGE key start stop [BYSCORE | BYLEX] [REV] [LIMIT offset count]
+  [WITHSCORES]`
+<br/>
+
+### ZADD
+- [redis.io/commands - ZADD](https://redis.io/commands/zadd/)
+- `key` 에 해당하는 SortedSet 에 score 와 함께 요소들을 저장합니다. score 를 기반으로 정렬되며, score가 같은 요소는 문자열 정렬을 통해 오름차순 정렬되어 저장됩니다.
+- O(log(N)) 의 시간복잡도가 소요됩니다. `N` 은 정렬된 집합의 요소 수를 의미합니다.
+- `ZADD key [NX | XX] [GT | LT] [CH] [INCR] score member [score member
+  ...]`
+  - e.g. `redis> ZADD myzset 1 "one"`
+  - e.g. `redis> ZADD myzset 2 "two" 3 "three"`
+<br/>
+
+### ZCARD
+- [redis.io/commands - ZCARD](https://redis.io/commands/zcard/)
+- `key` 에 해당하는 SortedSet 의 사이즈(Cardinality, 요소의 개수)를 리턴합니다.
+- O(1) 의 시간복잡도가 소요됩니다. 
+- `ZCARD key`
+<br/>
+
+### ZPOPMIN
+- [redis.io/commands - ZPOPMIN](https://redis.io/commands/zpopmin/)
+- `key` 에 해당하는 SortedSet 에서 `score` 가 가장 낮은 순으로 요소들 제거한 후 제거한 요소들을 리턴합니다.
+- O(log(N)*M) 의 시간복잡도가 소요됩니다. 
+- `ZPOPMIN key [count]`
+<br/>
+
+### ZPOPMAX
+- [redis.io/commands - ZPOPMAX](https://redis.io/commands/zpopmax/)
+- `key` 에 해당하는 SortedSet 에서 `score` 가 가장 높은 요소들을 제거한 후 제거한 요소들을 리턴합니다.
+- O(log(N)*M) 의 시간복잡도가 소요됩니다. 
+- `ZPOPMAX key [count]`
+<br/>
