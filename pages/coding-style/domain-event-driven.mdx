@@ -13,7 +13,8 @@ Coupon 발급 시나리오를 요약해보면 다음과 같습니다.
 - 스프링 컨테이너 내의 `@TransactionalEventHandler` 와 함께 이벤트 타입을 정의한 `CouponIssueCreatedEvent` 에 대한 리스너에서 도메인 이벤트에 맞는 후처리 작업을 수행합니다.
 <br/>
 
-## 데이터 저장 작업 완료 → `CouponIssueCreatedEvent` 발급
+## CouponIssuerScheduler
+데이터 저장 작업 완료 → `CouponIssueCreatedEvent` 발급을 하는 과정입니다.<br/>
 데이터를 저장하는 로직은 아래와 같습니다. 데이터 저장이 완료되면 `CouponIssueCreatedEvent`를 발급합니다. 데이터 발급 작업에만 집중하고 데이터 커밋이 이뤄진 후의 이후의 작업은 `Listener` 측에 위임합니다.<br/>
 ```java filename="CouponIssuerScheduler.java" {} copy
 package io.chagchagchag.project.coupon.issuer.application;
