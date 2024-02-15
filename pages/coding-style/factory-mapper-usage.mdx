@@ -1,5 +1,4 @@
 ## 객체생성은 factory, mapper 컴포넌트를 사용
-
 이번 문서에서 다뤄볼 내용은 아래와 같습니다.
 - Entity, Event 생성은 Factory 메서드에서 생성하도록 설계 
   - Entity 생성은 Factory 객체로 생성하게끔 코드의 구현과 설계를 했습니다.
@@ -15,6 +14,34 @@
 <br/>
 - 테스트 용도의 팩토리 메서드는 `-Fixtures` 라는 이름의 테스트 클래스에서 관리
   - 테스트 용도의 팩토리 메서드는 기존에 구현한 팩토리 메서드를 한번 더 감싸고 이름을 테스트에서 생성하려는 목적에 맞게끔 변경해주어서 테스트의 목적을 분간이 가능하도록 구성했습니다.
+<br/>
+
+## Factory, Mapper 객체는 모두 `@Component` 로 정의
+Factory, Mapper 객체는 객체를 생성하는 로직을 규격화하기 위해 정의한 메서드입니다. 하지만, 이런 Factory, Mapper 객체 마저도 프로젝트 곳곳에서 직접 하드코딩으로 객체를 생성한다면, 요구사항 수정사항 발생 시 어떤 특정한 로직의 출발점을 찾아내는 것이 쉽지 않을 수 있습니다.<br/>
+
+보통 이런 경우 대부분의 애플리케이션 프레임워크에서는 객체를 생성하고 의존성을 주입할 수 있는 도구를 제공하는데 스프링 프레임워크 역시 이런 기능을 제공해줍니다.
+이런 이유로 `-Factory`, `-Mapper` 클래스들은 모두 `@Component` 로 선언해서 프레임워크에서 주입받아 사용하도록 정의했습니다.<br/>
+
+### e.g. CouponEntityFactory.java
+```java filename="CouponEntityFactory.java` {0} copy
+// ... 
+@Component
+public class CouponEntityFactory {
+    // ...
+}
+```
+<br/>
+
+### e.g. CouponRequestMapper.java
+```java filename="CouponRequestMapper.java" {0} copy
+@Component
+public class CouponRequestMapper {
+    public CouponIssueQueueDto toCouponQueueIssueDto(CouponIssueRequest request){
+        return new CouponIssueQueueDto(request.userId(), request.couponId());
+    }
+}
+```
+<br/>
 
 ## Entity 생성은 Factory 메서드에서 생성하도록 설계
 예를 들어 아래와 같은 필드들을 가지고 있는 `CouponEntity` 가 있습니다.
@@ -330,6 +357,7 @@ public class CouponEntityFactory {
 
 }
 ```
+<br/>
 
 주요 메서드는 `newDefaultCoupon(...)`, `newInfiniteCoupon(title)`, `newDefaultCouponWithExpiration(...)` 이 있고, 인자값을 통해 의도를 파악할 수 있도록 구성했고, 디폴트 값을 설정하는 부분의 경우 Enum 을 통해서 디폴트 값이 설정될 수 있도록 구성했습니다.<br/>
 
@@ -380,4 +408,36 @@ public class CouponRequestMapper {
 테스트 용도의 팩토리 메서드는 기존에 구현한 팩토리 메서드를 한번 더 감싸고 이름을 테스트에서 생성하려는 목적에 맞게끔 변경해주어서 테스트의 목적을 분간이 가능하도록 구성했습니다.<br/>
 <br/>
 
+### e.g. CouponEntityFixtures.java
+```java filename="CouponEntityFixtures.java" {0} copy
+package io.chagchagchag.project.coupon.dataaccess.fixtures;
 
+// ..
+
+public class CouponEntityFixtures {
+    private static final CouponEntityFactory couponEntityFactory = new CouponEntityFactory();
+    public static CouponEntity ofNoError(){
+        return couponEntityFactory.newDefaultCoupon("");
+    }
+
+    public static CouponEntity ofNoError(Long couponId){
+        return couponEntityFactory.newDefaultCoupon("", couponId);
+    }
+
+    public static CouponEntity ofInvalidQuantity1(){
+        return couponEntityFactory.newDefaultCoupon(
+            "",
+                BigDecimal.ONE, BigDecimal.TWO
+        );
+    }
+
+    public static CouponEntity ofInvalidIssueDate1(){
+        return couponEntityFactory.newDefaultCouponWithExpiration(
+            "",
+                BigDecimal.TWO,BigDecimal.ONE,
+                LocalDateTime.now().minusDays(3), LocalDateTime.now().minusDays(2)
+        );
+    }
+
+}
+```
