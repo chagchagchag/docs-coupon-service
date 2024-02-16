@@ -2,13 +2,15 @@
 이번 문서에서 다뤄볼 내용은 아래와 같습니다.
 - Entity, Event 생성은 Factory 메서드에서 생성하도록 설계 
   - Entity 생성은 Factory 객체로 생성하게끔 코드의 구현과 설계를 했습니다.
-  - Entity 객체 생성을 코드 여기 저기에서 Lombok 의 builder 를 사용해서 Entity 객체를 생성하는 것이 2년 전에 신규 프로젝트를 수행할 때에는 이상할 정도로 신경이 쓰였습니다. 시간이 지나서 생각해보니 Entity 를 새로 생성하는 부분은 `@Component` 로 선언된 별도의 Factory 객체 내에 factory 메서드를 생성하는 것이 좋다는 생각에 도달했습니다.
-  - 이렇게 하면 Entity 객체의 생성을 Factory 메서드에서 수행하면 코드레벨에서 하드코딩하는 것으로 인해 발생하는 의도에 어긋나는 객체생성 동작을 방지하게끔 하고 추후 유지보수 사항 발생시, 사용 중인 메서드를 수정하는 것으로 일괄적인 수정이 가능하도록 하는 것이 가능해지기 때문입니다.
+  - Entity 객체 생성을 코드 여기 저기에서 Lombok 의 builder 를 사용해서 Entity 객체를 생성하는 것이 2년 전에 신규 프로젝트를 수행할 때에는 이상할 정도로 신경이 쓰였습니다. 시간이 지나서 생각해보니 Entity 를 새로 생성하는 부분은 `@Component` 로 선언된 별도의 Factory 객체 내에 factory 메서드에서 생성하도록 하는 것이 좋겠다는 생각에 도달했습니다.
+  - 이렇게 Entity 객체의 생성을 Factory 메서드에서 수행하면 코드레벨에서 객체의 생성을 하드코딩하는 것으로 인해 발생하는 의도에 어긋나는 객체생성 동작을 방지하게끔 하고 추후 유지보수 사항 발생시, 사용 중인 메서드를 수정하는 것 만으로도 일괄적인 수정이 가능하도록 하는 것이 가능해진다는 장점이 생깁니다.
   - 또한 객체 생성 구문을 테스트 해야 할때 Factory 메서드 하나만 수정하면 되기에 테스트 코드 관리에도 조금 더 요긴해집니다.
   - 객체 생성 메서드에 이름을 지정할 수 있고 메서드 오버로딩이 가능하기에 팩토리 메서드의 메서드 명과 인자 값들을 통해 어떤 역할을 하는지 유추할 수 있기에 사용성 측면에서도 장점이 큽니다.
   - 기본값 등에 대한 명세들을 제공하는 Enum 등과 결합해서 하나의 팩토리 메서드 들의 인자값의 생성 범위를 비즈니스 요건에 맞도록 지속적으로 규격화 할 수 있다는 점도 장점입니다.
   - Event 객체 생성 역시 factory 객체를 사용합니다.
-- value object 는 mapper 를 통해 변환/생성하도록 설계
+<br/>
+
+- Value Object 는 mapper 를 통해 변환/생성하도록 설계
   - API 계층의 Request/Response 또는 서로 다른 계층 간의 Value Object 변환 시에는 mapper 객체를 사용해서 변환/생성하도록 설계했습니다.
   - 이렇게 하면 객체 변환/생성 로직을 하드 코딩하는 것으로 인해 유지보수 사항이 발생했을 때 하드코딩 된 객체 생성 로직을 일일이 찾아서 고쳐야 하는 점을 방지할 수 있다는 것이 장점입니다.
 <br/>
@@ -23,7 +25,7 @@ Factory, Mapper 객체는 객체를 생성하는 로직을 규격화하기 위�
 이런 이유로 `-Factory`, `-Mapper` 클래스들은 모두 `@Component` 로 선언해서 프레임워크에서 주입받아 사용하도록 정의했습니다.<br/>
 
 ### e.g. CouponEntityFactory.java
-```java filename="CouponEntityFactory.java` {0} copy
+```java filename="CouponEntityFactory.java" {0} copy
 // ... 
 @Component
 public class CouponEntityFactory {
@@ -390,9 +392,10 @@ public class CouponEntityFactory {
 
 ## value object 는 mapper 를 통해 변환/생성하도록 설계
 엄청나게 복잡한 내용은 아니지만, 요약해보면 이렇습니다.<br/>
+
 Request 객체를 QueueDto 로 변환 후에 cache 계층 내의 queue 서비스에 전달해주어야 하는데 여기에 대해서 객체의 변환 작업 및 객체 생성을 `@Service` 내에서 바로 하드코딩으로 수행하는 것이 아니라 `CouponRequestMapper` 라는 이름의 컴포넌트 내에서 수행하도록 지정하는 것입니다.<br/>
-이렇게 하면, 다른 계층의 변경사항이 `@Service` 에 까지 전이되지 않고 Mapper 클래스 내부의 변환 메서드만 변경해주면 된다는 유지 보수 상의 장점이 있습니다.
-<br/>
+
+이렇게 하면, 다른 계층의 변경사항이 `@Service` 에 까지 전이되지 않고 Mapper 클래스 내부의 변환 메서드만 변경해주면 된다는 유지 보수 상의 장점이 있습니다.<br/>
 
 ```java filename="CouponRequestMapper.java" {0} copy
 @Component
